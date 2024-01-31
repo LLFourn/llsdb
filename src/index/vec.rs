@@ -173,7 +173,7 @@ pub struct VecRemoveApi<'i, F, T> {
 }
 
 #[derive(Debug)]
-pub enum ChangeMut {
+enum ChangeMut {
     Push,
     Pop(EntryPointer),
     Remove(usize, EntryPointer),

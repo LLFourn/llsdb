@@ -1,14 +1,14 @@
 use crate::{
     freespace::{Free, FreeSpace},
     index::{IndexStore, RefCellIndexStore},
-    EntryHandle, EntryPointer, LinkedList, ListSlot, Pointer, Remap, BINCODE_CONFIG,
+    Backend, EntryHandle, EntryPointer, LinkedList, ListSlot, Pointer, Remap, BINCODE_CONFIG,
 };
 use anyhow::{anyhow, Context, Result};
 use core::mem::size_of;
 use std::{
     cell::RefCell,
     collections::{BTreeSet, HashMap},
-    io::{self, Read, Seek, SeekFrom, Write},
+    io::{Read, SeekFrom, Write},
     marker::PhantomData,
     rc::Rc,
 };
@@ -204,9 +204,8 @@ where
                 self.io().set_free(free_slot, free);
             }
 
-            output = match self.io().write_first_page() {
-                Ok(_) => output,
-                Err(e) => Err(e),
+            if let Err(e) = self.io().write_first_page() {
+                output = Err(e);
             }
         }
 
@@ -369,6 +368,7 @@ impl<F: Backend> Io<F> {
     fn write_first_page(&mut self) -> Result<()> {
         self.file.rewind()?;
         self.file.write_all(&self.page_buf)?;
+        self.file.sync_data()?;
         Ok(())
     }
 
@@ -454,47 +454,6 @@ impl<F: Backend> Io<F> {
     fn current_position(&mut self) -> Result<Pointer> {
         let stream_position = self.file.stream_position()?;
         Ok(self.file_position_to_pointer(stream_position))
-    }
-}
-
-pub trait Backend: Read + Write + Seek {
-    fn truncate(&mut self, size: u64) -> Result<()>;
-    fn init_max_size(&self) -> u64;
-    fn init_page_size(&self) -> u16;
-}
-
-/// this is for tests
-impl<'a, T> Backend for io::Cursor<&'a mut Vec<T>>
-where
-    io::Cursor<&'a mut Vec<T>>: Read + Write + Seek,
-{
-    fn truncate(&mut self, len: u64) -> Result<()> {
-        self.get_mut().truncate(len as usize);
-        Ok(())
-    }
-
-    fn init_max_size(&self) -> u64 {
-        u64::MAX
-    }
-
-    fn init_page_size(&self) -> u16 {
-        // smaller numbers make things easier to debug
-        128
-    }
-}
-
-impl Backend for std::fs::File {
-    fn truncate(&mut self, size: u64) -> Result<()> {
-        self.set_len(size)?;
-        Ok(())
-    }
-
-    fn init_max_size(&self) -> u64 {
-        u64::MAX
-    }
-
-    fn init_page_size(&self) -> u16 {
-        4096
     }
 }
 
