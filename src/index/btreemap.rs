@@ -178,6 +178,16 @@ where
     pub fn iter(&self) -> impl Iterator<Item = Result<(K, V)>> + DoubleEndedIterator + '_ {
         self.range(..)
     }
+
+    pub fn extend(
+        &mut self,
+        iter: impl IntoIterator<Item = (K, impl core::borrow::Borrow<V>)>,
+    ) -> Result<()> {
+        for (k, v) in iter.into_iter() {
+            self.insert(k, core::borrow::Borrow::borrow(&v))?;
+        }
+        Ok(())
+    }
 }
 
 pub struct Range<'a, F, K, V> {
